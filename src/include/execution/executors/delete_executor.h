@@ -60,5 +60,9 @@ class DeleteExecutor : public AbstractExecutor {
   const DeletePlanNode *plan_;
   /** The child executor from which RIDs for deleted tuples are pulled */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  /** Metadata identifying the table that should be inserted */
+  TableInfo *table_info_{Catalog::NULL_TABLE_INFO};
+  /** All Indexes that need to update as well */
+  std::vector<IndexInfo *> indexs_{};
 };
 }  // namespace bustub

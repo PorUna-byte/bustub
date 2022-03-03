@@ -17,9 +17,46 @@
 
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/distinct_plan.h"
-
+#include "common/util/hash_util.h"
 namespace bustub {
+  /** DistinctKey represents a key in an Distinct operation */
+  struct DistinctKey {
+  /** All values of a tuple*/
+  std::vector<Value> vals_;
 
+  /**
+   * Compares two Distinct keys for equality.
+   * @param other the other Dintinct key to be compared with
+   * @return `true` if both Distinct keys have equivalent vals_ expressions, `false` otherwise
+   */
+  bool operator==(const DistinctKey &other) const {
+    for (uint32_t i = 0; i < other.vals_.size(); i++) {
+      if (vals_[i].CompareEquals(other.vals_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+}
+namespace std {
+
+/** Implements std::hash on DistinctKey */
+template <>
+struct hash<bustub::DistinctKey> {
+  std::size_t operator()(const bustub::DistinctKey &distinct_key) const {
+    size_t curr_hash = 0;
+    for (const auto &key : distinct_key.vals_) {
+      if (!key.IsNull()) {
+        curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
+
+}  // namespace std
+namespace bustub{
 /**
  * DistinctExecutor removes duplicate rows from child ouput.
  */
@@ -47,11 +84,23 @@ class DistinctExecutor : public AbstractExecutor {
 
   /** @return The output schema for the distinct */
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
-
+  
+  DistinctKey make_Distinctkey(Tuple &tuple){
+    std::vector<Value> vals;
+    uint32_t column_count=child_executor_->GetOutputSchema()->GetColumnCount();
+    vals.reserve(column_count);
+    for(uint i=0;i<column_count;i++){
+      vals.push_back(tuple.GetValue(child_executor_->GetOutputSchema(),i));
+    }
+    return {vals};
+  }
  private:
   /** The distinct plan node to be executed */
   const DistinctPlanNode *plan_;
   /** The child executor from which tuples are obtained */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  /** The hash table used to eliminate duplicate tuples*/
+  std::unordered_map<DistinctKey,uint32_t> ht_;
+
 };
 }  // namespace bustub

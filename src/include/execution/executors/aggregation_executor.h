@@ -25,7 +25,9 @@
 #include "execution/plans/aggregation_plan.h"
 #include "storage/table/tuple.h"
 #include "type/value_factory.h"
-
+#include "execution/expressions/column_value_expression.h"
+#include "execution/expressions/constant_value_expression.h"
+#include "execution/expressions/aggregate_value_expression.h"
 namespace bustub {
 
 /**
@@ -166,7 +168,8 @@ class AggregationExecutor : public AbstractExecutor {
    */
   AggregationExecutor(ExecutorContext *exec_ctx, const AggregationPlanNode *plan,
                       std::unique_ptr<AbstractExecutor> &&child);
-
+  
+  ~AggregationExecutor();
   /** Initialize the aggregation */
   void Init() override;
 
@@ -209,8 +212,12 @@ class AggregationExecutor : public AbstractExecutor {
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table */
-  // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
-  // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+  /** Predicate to evaluate having clause*/
+  const AbstractExpression* predicate_;
+
+  bool is_allo_=false;
 };
 }  // namespace bustub

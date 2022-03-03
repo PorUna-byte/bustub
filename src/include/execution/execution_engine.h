@@ -51,7 +51,7 @@ class ExecutionEngine {
                ExecutorContext *exec_ctx) {
     // Construct and executor for the plan
     auto executor = ExecutorFactory::CreateExecutor(exec_ctx, plan);
-
+    auto plan_type=plan->GetType();
     // Prepare the root executor
     executor->Init();
 
@@ -60,7 +60,8 @@ class ExecutionEngine {
       Tuple tuple;
       RID rid;
       while (executor->Next(&tuple, &rid)) {
-        if (result_set != nullptr) {
+        bool modified = ((plan_type==PlanType::Insert)||(plan_type==PlanType::Delete)||(plan_type==PlanType::Update));
+        if(result_set != nullptr && !modified) {
           result_set->push_back(tuple);
         }
       }

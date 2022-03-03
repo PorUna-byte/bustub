@@ -19,7 +19,9 @@
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/nested_loop_join_plan.h"
 #include "storage/table/tuple.h"
-
+#include "execution/expressions/column_value_expression.h"
+#include "execution/expressions/constant_value_expression.h"
+#include "type/value_factory.h"
 namespace bustub {
 
 /**
@@ -40,7 +42,8 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
 
   /** Initialize the join */
   void Init() override;
-
+  //free the memory if needed
+  ~NestedLoopJoinExecutor() override;
   /**
    * Yield the next tuple from the join.
    * @param[out] tuple The next tuple produced by the join
@@ -55,6 +58,16 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
  private:
   /** The NestedLoopJoin plan node to be executed. */
   const NestedLoopJoinPlanNode *plan_;
+  /** left executor */
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  /** right executor */
+  std::unique_ptr<AbstractExecutor> right_executor_;
+  /** left tuple(outer loop) */
+  Tuple left_tuple_{};
+  RID left_rid_{};
+  bool is_left_select=false;
+  const AbstractExpression *predicate_{nullptr};
+  bool is_alloc_=false;
 };
 
 }  // namespace bustub

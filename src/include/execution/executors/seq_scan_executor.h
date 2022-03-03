@@ -12,10 +12,12 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
+#include "execution/expressions/abstract_expression.h"
 #include "execution/plans/seq_scan_plan.h"
 #include "storage/table/tuple.h"
 
@@ -32,6 +34,8 @@ class SeqScanExecutor : public AbstractExecutor {
    * @param plan The sequential scan plan to be executed
    */
   SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan);
+
+  ~SeqScanExecutor() override;
 
   /** Initialize the sequential scan */
   void Init() override;
@@ -50,5 +54,17 @@ class SeqScanExecutor : public AbstractExecutor {
  private:
   /** The sequential scan plan node to be executed */
   const SeqScanPlanNode *plan_;
+  /** Point to the position of the tuple currently being scanned */
+  TableIterator cur_;
+  /** Point to the next position of the last tuple */
+  TableIterator end_;
+  /** Metadata identifying the table that should be seqscan */
+  TableInfo *table_info_{Catalog::NULL_TABLE_INFO};
+  /** Determine whether to return the tuples */
+  mutable const AbstractExpression *predicate_{nullptr};
+  /** Whether to allocate memory for the predicate_ */
+  bool is_alloc_{false};
+  /** The idx of each column of the out schema in the origin schema */
+  std::vector<uint32_t> out_schema_idx_;
 };
 }  // namespace bustub

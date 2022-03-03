@@ -19,7 +19,43 @@
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
+#include "common/util/hash_util.h"
+#include "execution/expressions/column_value_expression.h"
+namespace bustub {
+  /** HashJoinKey represents a key in an Hash-Join operation */
+  struct HashJoinKey {
+  /** The HashJoin key is constructed by LeftJoinKeyExpression and RightJoinKeyExpression */
+  Value key_;
 
+  /**
+   * Compares two HashJoin key for equality.
+   * @param other the other HashJoin key to be compared with
+   * @return `true` if both HashJoin keys have equivalent key_ expressions, `false` otherwise
+   */
+  bool operator==(const HashJoinKey &other) const {
+    return key_.CompareEquals(other.key_) == CmpBool::CmpTrue;
+  }
+};
+/** HashJoinValue represents a value for each of the value of a tuple */
+struct HashJoinValue {
+  /** The tuple's all values */
+  std::vector<Value> vals_;
+};
+
+}
+namespace std {
+
+/** Implements std::hash on HashJoinKey */
+template <>
+struct hash<bustub::HashJoinKey> {
+  std::size_t operator()(const bustub::HashJoinKey &hash_key) const {
+    size_t curr_hash = 0;
+    curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&hash_key.key_));
+    return curr_hash;
+  }
+};
+
+}  // namespace std
 namespace bustub {
 
 /**
@@ -52,8 +88,27 @@ class HashJoinExecutor : public AbstractExecutor {
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
  private:
-  /** The NestedLoopJoin plan node to be executed. */
+  /** The HashJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
-};
 
+  std::unique_ptr<AbstractExecutor> left_child_;
+  std::unique_ptr<AbstractExecutor> right_child_;
+
+  /** The HashTable that maps a hash(HashJoinKey), which is a size_t to a vector of left_tuples
+   *  Note that a HashJoinValue is corresponding to a left_tuple.
+   */
+  std::unordered_map<HashJoinKey, std::vector<HashJoinValue>> hash_table_{};
+  /** current bucket contains a vector of left tuples.
+   *  It means the bucket that the considered right tuple being hashed in.
+   *  we need to try out this bucket before we consider next right tuple.
+  */
+  std::vector<HashJoinValue> cur_bucket_{};
+  /** This indicate next left tuple we need to consider in current bucket.
+   *  if(bkt_idx>=cur_bucket_.size()) we know we have already tried out current bucket.
+  */
+  uint32_t bkt_idx_=0;
+
+  Tuple right_tuple_{};
+  RID right_rid_{};
+};
 }  // namespace bustub

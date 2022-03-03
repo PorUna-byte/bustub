@@ -110,7 +110,7 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * Deallocate a page on disk.
    * @param page_id id of the page to deallocate
    */
-  void DeallocatePage(__attribute__((unused)) page_id_t page_id) {
+  void DeallocatePage([[maybe_unused]] page_id_t page_id) {
     // This is a no-nop right now without a more complex data structure to track deallocated pages
   }
 
@@ -133,9 +133,9 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   /** Array of buffer pool pages. */
   Page *pages_;
   /** Pointer to the disk manager. */
-  DiskManager *disk_manager_ __attribute__((__unused__));
+  DiskManager *disk_manager_[[maybe_unused]];
   /** Pointer to the log manager. */
-  LogManager *log_manager_ __attribute__((__unused__));
+  LogManager *log_manager_[[maybe_unused]];
   /** Page table for keeping track of buffer pool pages. */
   std::unordered_map<page_id_t, frame_id_t> page_table_;
   /** Replacer to find unpinned pages for replacement. */
@@ -144,5 +144,25 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   std::list<frame_id_t> free_list_;
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
+
+ private:
+  /**
+   * Find a fresh page.
+   * @return the frame id of the fresh page, or -1 if not found.
+   */
+  frame_id_t FindFreshPage();
+
+  /**
+   * Flush the contents of page to disk.
+   * @param page_id the page id of the page to be flushed.
+   */
+  void FlushPg(page_id_t page_id);
+
+  /**
+   * Find the page specified by page id
+   * @param page_id the page id of the page to be found.
+   * @return the frame id of the page, or -1 if not found.
+   */
+  frame_id_t FindPage(page_id_t page_id);
 };
 }  // namespace bustub
