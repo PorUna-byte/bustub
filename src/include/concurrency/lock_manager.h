@@ -49,8 +49,14 @@ class LockManager {
     std::list<LockRequest> request_queue_;
     // for notifying blocked transactions on this rid
     std::condition_variable cv_;
-    // txn_id of an upgrading transaction (if any)
+    // wheather there is a transaction perfroming upgrade operation
     txn_id_t upgrading_ = INVALID_TXN_ID;
+    // wheather there is a transaction perfroming writing operation 
+    bool is_writing_ = false;
+    // The number of transactions that are reading the record concurrently
+    int shared_read_ =0;
+    // When many transactions want to access the lock request queue, it needs a latch to perform concurrency control
+    std::mutex latch_;
   };
 
  public:
@@ -105,10 +111,22 @@ class LockManager {
   bool Unlock(Transaction *txn, const RID &rid);
 
  private:
+ /** Manage concurrent control over lock_table_ (i.e. many transactions may need to look up the lock_table_ concurrently) */
   std::mutex latch_;
 
   /** Lock table for lock requests. */
   std::unordered_map<RID, LockRequestQueue> lock_table_;
+
+  //A mapping from txn_id to txn
+  std::unordered_map<txn_id_t, Transaction *> txn_map_ = {};
+  //A util to abort
+  void Implicit_Abort(Transaction* txn,AbortReason reason);
+
+  //Dead Lock prevention use WOUND_WAIT algorithm
+  void WOUND_WAIT(Transaction* txn,LockMode mode,LockRequestQueue& request_queue_);
+
+  //DeadLock Abort
+  bool check_deadLock_abort(Transaction* txn,LockRequestQueue& request_queue);
 };
 
 }  // namespace bustub

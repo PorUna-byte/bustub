@@ -30,8 +30,22 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   bool is_update=false; 
   if(child_executor_->Next(tuple,rid)){
     Tuple update_tuple=GenerateUpdatedTuple(*tuple);
+    auto txn=exec_ctx_->GetTransaction();
+    if(txn->IsSharedLocked(*rid)){
+      if(!exec_ctx_->GetLockManager()->LockUpgrade(txn,*rid)){
+        exec_ctx_->GetTransactionManager()->Abort(txn);
+        return false;
+      }
+    }
+    else{
+        if(!exec_ctx_->GetLockManager()->LockExclusive(txn,*rid)){
+          exec_ctx_->GetTransactionManager()->Abort(txn);
+          return false;
+      }
+    }
     is_update=table_info_->table_->UpdateTuple(update_tuple,*rid,exec_ctx_->GetTransaction());
     if(is_update){
+      txn->AppendTableWriteRecord({*rid,WType::UPDATE,*tuple,table_info_->table_.get()});
       for(IndexInfo* index:indexs_){
         Tuple update_tuple_key=
         update_tuple.KeyFromTuple(table_info_->schema_,index->key_schema_,index->index_->GetKeyAttrs());
@@ -40,7 +54,10 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
         index->index_->DeleteEntry(old_tuple_key,*rid,exec_ctx_->GetTransaction());
         index->index_->InsertEntry(update_tuple_key,update_tuple.GetRid(),exec_ctx_->GetTransaction());
       }
-    }  
+    }
+    //Only repeatable read need to comply with 2PL
+    if(txn->GetIsolationLevel()!=IsolationLevel::REPEATABLE_READ)
+      exec_ctx_->GetLockManager()->Unlock(txn,*rid);    
   }  
   return is_update; 
 }

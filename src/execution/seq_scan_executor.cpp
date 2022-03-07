@@ -58,9 +58,18 @@ void SeqScanExecutor::Init() {
 }
 
 bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
+  auto txn=exec_ctx_->GetTransaction();
   while(cur_!=end_){
-    Value accept=predicate_->Evaluate(&(*cur_),&table_info_->schema_);
-    Tuple temp=*cur_;
+    const Tuple temp=*cur_;
+          //Acquire shared lock before read
+      if(txn->GetIsolationLevel()!=IsolationLevel::READ_UNCOMMITTED){
+        //Abort the transaction when failed to acquire a lock
+        if(!exec_ctx_->GetLockManager()->LockShared(txn,temp.GetRid())){
+          exec_ctx_->GetTransactionManager()->Abort(txn);
+          return false;
+        }
+      }
+    Value accept=predicate_->Evaluate(&temp,&table_info_->schema_);
     cur_++;
     if(accept.GetAs<bool>()){ 
       std::vector<Value> vals;
@@ -72,8 +81,16 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
       }  
       *tuple=Tuple(vals,plan_->OutputSchema());
       *rid=temp.GetRid();
+      //Unlock the tuple before we iterate next tuple
+      if(txn->GetIsolationLevel()==IsolationLevel::READ_COMMITTED){
+        exec_ctx_->GetLockManager()->Unlock(txn,temp.GetRid());
+      }
       return true;
-    }  
+    }
+    //Unlock the tuple before we iterate next tuple
+    if(txn->GetIsolationLevel()==IsolationLevel::READ_COMMITTED){
+      exec_ctx_->GetLockManager()->Unlock(txn,temp.GetRid());
+    } 
   }  
   return false;
 }

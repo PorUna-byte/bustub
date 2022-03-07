@@ -30,7 +30,9 @@ void InsertExecutor::Init() {
 }
 
 bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
-  bool is_inserted=false;   
+  bool is_inserted=false; 
+  bool RID_valid=false;
+  auto txn=exec_ctx_->GetTransaction();  
   if(plan_->IsRawInsert()){
     if(next_pos_<plan_->RawValues().size()){
       auto vals= plan_->RawValues();
@@ -38,17 +40,34 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       is_inserted=table_info_->table_->InsertTuple(*tuple,rid,exec_ctx_->GetTransaction()); 
     }
   }  
-  else if(child_executor_->Next(tuple,rid)) 
+  else if(child_executor_->Next(tuple,rid))
+  { 
+    RID_valid=true;
     is_inserted=table_info_->table_->InsertTuple(*tuple,rid,exec_ctx_->GetTransaction());
+  }
   //You will need to update all indexes for the table into which tuples are inserted.
-  if(is_inserted&&!indexs_.empty()){
+  if(is_inserted){
+    //Acquire an exclusive lock before we modify the table.
+    if(!exec_ctx_->GetLockManager()->LockExclusive(txn,*rid)){
+      exec_ctx_->GetTransactionManager()->Abort(txn);
+      return false;
+    }
+    if(RID_valid)
+      txn->AppendTableWriteRecord({*rid,WType::INSERT,*tuple,table_info_->table_.get()});
     //now we need to update all indexes
     for(IndexInfo* index:indexs_){
       Tuple index_key=tuple->KeyFromTuple(table_info_->schema_,
       index->key_schema_,index->index_->GetKeyAttrs());  
       index->index_->InsertEntry(index_key,*rid,exec_ctx_->GetTransaction());
-    }    
-  }    
+    }  
+    //Only repeatable read need to comply with 2PL
+    if(RID_valid&&txn->GetIsolationLevel()!=IsolationLevel::REPEATABLE_READ)
+      exec_ctx_->GetLockManager()->Unlock(txn,*rid); 
+
+    //Only repeatable read need to comply with 2PL
+    if(RID_valid&&txn->GetIsolationLevel()!=IsolationLevel::REPEATABLE_READ)
+      exec_ctx_->GetLockManager()->Unlock(txn,*rid);        
+  }     
   return is_inserted;  
 }    
 
